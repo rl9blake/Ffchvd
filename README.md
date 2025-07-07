@@ -6,39 +6,58 @@ local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
--- GUI
-local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
-ScreenGui.Name = "AimbotESP_GUI"
+-- GUI Setup (coloca só uma vez)
+local function SetupGUI()
+	if LocalPlayer:FindFirstChild("PlayerGui"):FindFirstChild("AimbotESP_GUI") then return end
 
-local AimbotButton = Instance.new("TextButton", ScreenGui)
-AimbotButton.Size = UDim2.new(0, 120, 0, 40)
-AimbotButton.Position = UDim2.new(0, 10, 0, 10)
-AimbotButton.Text = "Aimbot: OFF"
-AimbotButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-AimbotButton.TextScaled = true
+	local ScreenGui = Instance.new("ScreenGui")
+	ScreenGui.Name = "AimbotESP_GUI"
+	ScreenGui.ResetOnSpawn = false
+	ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-local ESPButton = Instance.new("TextButton", ScreenGui)
-ESPButton.Size = UDim2.new(0, 120, 0, 40)
-ESPButton.Position = UDim2.new(0, 10, 0, 60)
-ESPButton.Text = "ESP: OFF"
-ESPButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-ESPButton.TextScaled = true
+	local AimbotButton = Instance.new("TextButton")
+	AimbotButton.Name = "AimbotButton"
+	AimbotButton.Size = UDim2.new(0, 120, 0, 40)
+	AimbotButton.Position = UDim2.new(0, 10, 0, 10)
+	AimbotButton.Text = "Aimbot: OFF"
+	AimbotButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+	AimbotButton.TextScaled = true
+	AimbotButton.Parent = ScreenGui
 
--- Estado
+	local ESPButton = Instance.new("TextButton")
+	ESPButton.Name = "ESPButton"
+	ESPButton.Size = UDim2.new(0, 120, 0, 40)
+	ESPButton.Position = UDim2.new(0, 10, 0, 60)
+	ESPButton.Text = "ESP: OFF"
+	ESPButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+	ESPButton.TextScaled = true
+	ESPButton.Parent = ScreenGui
+
+	AimbotButton.MouseButton1Click:Connect(function()
+		AimbotEnabled = not AimbotEnabled
+		AimbotButton.Text = AimbotEnabled and "Aimbot: ON" or "Aimbot: OFF"
+		AimbotButton.BackgroundColor3 = AimbotEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+	end)
+
+	ESPButton.MouseButton1Click:Connect(function()
+		ESPEnabled = not ESPEnabled
+		ESPButton.Text = ESPEnabled and "ESP: ON" or "ESP: OFF"
+		ESPButton.BackgroundColor3 = ESPEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+	end)
+end
+
+-- Estados
 local AimbotEnabled = false
 local ESPEnabled = false
 
-AimbotButton.MouseButton1Click:Connect(function()
-	AimbotEnabled = not AimbotEnabled
-	AimbotButton.Text = AimbotEnabled and "Aimbot: ON" or "Aimbot: OFF"
-	AimbotButton.BackgroundColor3 = AimbotEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+-- Inicializa GUI
+LocalPlayer.CharacterAdded:Connect(function()
+	task.wait(1)
+	SetupGUI()
 end)
 
-ESPButton.MouseButton1Click:Connect(function()
-	ESPEnabled = not ESPEnabled
-	ESPButton.Text = ESPEnabled and "ESP: ON" or "ESP: OFF"
-	ESPButton.BackgroundColor3 = ESPEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-end)
+-- Também roda uma vez no início
+SetupGUI()
 
 -- Raycast para visibilidade
 local rayParams = RaycastParams.new()
@@ -53,7 +72,7 @@ local function IsVisible(part)
 	return not result or result.Instance:IsDescendantOf(part.Parent)
 end
 
--- Aimbot com verificação de distância (20 studs)
+-- Aimbot com verificação de distância (28 studs)
 local function GetClosestVisiblePlayer(maxDistance)
 	local closest = nil
 	local shortest = math.huge
@@ -123,11 +142,11 @@ Players.PlayerRemoving:Connect(function(player)
 	end
 end)
 
--- Loop
+-- Loop principal
 RunService.RenderStepped:Connect(function()
 	-- Aimbot
 	if AimbotEnabled then
-		local maxDistance = 20 -- Alcance do Aimbot
+		local maxDistance = 28 -- Aumentado para 28 studs
 		local target = GetClosestVisiblePlayer(maxDistance)
 		if target and target.Character and target.Character:FindFirstChild("Head") then
 			local headPos = target.Character.Head.Position
