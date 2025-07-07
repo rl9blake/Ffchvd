@@ -1,118 +1,12 @@
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
-local Camera = Workspace.CurrentCamera
+-- [Mesma estrutura inicial do script anterior até a parte "Render Loop"]
+-- Mantém as funções SetupGUI, IsVisible, GetClosestPlayerInFOV, etc.
 
-local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
-
--- GUI Setup (coloca só uma vez)
-local function SetupGUI()
-	if LocalPlayer:FindFirstChild("PlayerGui"):FindFirstChild("AimbotESP_GUI") then return end
-
-	local ScreenGui = Instance.new("ScreenGui")
-	ScreenGui.Name = "AimbotESP_GUI"
-	ScreenGui.ResetOnSpawn = false
-	ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
-	local AimbotButton = Instance.new("TextButton")
-	AimbotButton.Name = "AimbotButton"
-	AimbotButton.Size = UDim2.new(0, 120, 0, 40)
-	AimbotButton.Position = UDim2.new(0, 10, 0, 10)
-	AimbotButton.Text = "Aimbot: OFF"
-	AimbotButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-	AimbotButton.TextScaled = true
-	AimbotButton.Parent = ScreenGui
-
-	local ESPButton = Instance.new("TextButton")
-	ESPButton.Name = "ESPButton"
-	ESPButton.Size = UDim2.new(0, 120, 0, 40)
-	ESPButton.Position = UDim2.new(0, 10, 0, 60)
-	ESPButton.Text = "ESP: OFF"
-	ESPButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-	ESPButton.TextScaled = true
-	ESPButton.Parent = ScreenGui
-
-	AimbotButton.MouseButton1Click:Connect(function()
-		AimbotEnabled = not AimbotEnabled
-		AimbotButton.Text = AimbotEnabled and "Aimbot: ON" or "Aimbot: OFF"
-		AimbotButton.BackgroundColor3 = AimbotEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-	end)
-
-	ESPButton.MouseButton1Click:Connect(function()
-		ESPEnabled = not ESPEnabled
-		ESPButton.Text = ESPEnabled and "ESP: ON" or "ESP: OFF"
-		ESPButton.BackgroundColor3 = ESPEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-	end)
-end
-
--- Estados
-local AimbotEnabled = false
-local ESPEnabled = false
-
--- Inicializa GUI
-LocalPlayer.CharacterAdded:Connect(function()
-	task.wait(1)
-	SetupGUI()
-end)
-
--- Também roda uma vez no início
-SetupGUI()
-
--- Raycast para visibilidade
-local rayParams = RaycastParams.new()
-rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-rayParams.IgnoreWater = true
-
-local function IsVisible(part)
-	local origin = Camera.CFrame.Position
-	local direction = (part.Position - origin)
-	rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
-	local result = Workspace:Raycast(origin, direction, rayParams)
-	return not result or result.Instance:IsDescendantOf(part.Parent)
-end
-
--- Aimbot com verificação de distância (28 studs)
-local function GetClosestVisiblePlayer(maxDistance)
-	local closest = nil
-	local shortest = math.huge
-
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
-			local head = player.Character.Head
-			local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-			local distanceToPlayer = (head.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-
-			if onScreen and IsVisible(head) and distanceToPlayer <= maxDistance then
-				local mouseDistance = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
-				if mouseDistance < shortest then
-					shortest = mouseDistance
-					closest = player
-				end
-			end
-		end
-	end
-	return closest
-end
-
--- ESP (Box + Nome)
-local DrawingESP = {}
-
-local function CreateBox()
-	local box = Drawing.new("Square")
-	box.Thickness = 1.5
-	box.Filled = false
-	box.Visible = false
-	return box
-end
-
-local function CreateName()
-	local text = Drawing.new("Text")
-	text.Size = 14
-	text.Center = true
-	text.Outline = true
-	text.Visible = false
-	return text
+-- Atualiza a estrutura de DrawingESP para incluir barra de vida
+local function CreateHealth()
+	local bar = Drawing.new("Line")
+	bar.Thickness = 3
+	bar.Visible = false
+	return bar
 end
 
 for _, player in ipairs(Players:GetPlayers()) do
@@ -120,6 +14,7 @@ for _, player in ipairs(Players:GetPlayers()) do
 		DrawingESP[player] = {
 			Box = CreateBox(),
 			Name = CreateName(),
+			Health = CreateHealth(),
 		}
 	end
 end
@@ -129,39 +24,73 @@ Players.PlayerAdded:Connect(function(player)
 		DrawingESP[player] = {
 			Box = CreateBox(),
 			Name = CreateName(),
+			Health = CreateHealth(),
 		}
 	end
 end)
 
 Players.PlayerRemoving:Connect(function(player)
 	if DrawingESP[player] then
-		for _, obj in pairs(DrawingESP[player]) do
-			obj:Remove()
+		for _, v in pairs(DrawingESP[player]) do
+			v:Remove()
 		end
 		DrawingESP[player] = nil
 	end
 end)
 
--- Loop principal
+-- ATUALIZADO: Só considera inimigos (diferente TeamColor)
+local function IsEnemy(player)
+	if player.Team and LocalPlayer.Team then
+		return player.TeamColor ~= LocalPlayer.TeamColor
+	end
+	return true -- se não tem time, considera inimigo
+end
+
+-- Atualizado: só considera inimigos no aimbot
+local function GetClosestEnemyInFOV()
+	local closest = nil
+	local shortest = math.huge
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and IsEnemy(player) and player.Character and player.Character:FindFirstChild("Head") then
+			local head = player.Character.Head
+			local distance = (head.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+
+			if distance <= maxDistance and IsVisible(head) then
+				local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+				if onScreen then
+					local mouseDist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
+					if mouseDist < shortest then
+						shortest = mouseDist
+						closest = head
+					end
+				end
+			end
+		end
+	end
+	return closest
+end
+
+-- Atualizado loop de renderização
 RunService.RenderStepped:Connect(function()
 	-- Aimbot
 	if AimbotEnabled then
-		local maxDistance = 28 -- Aumentado para 28 studs
-		local target = GetClosestVisiblePlayer(maxDistance)
-		if target and target.Character and target.Character:FindFirstChild("Head") then
-			local headPos = target.Character.Head.Position
-			local look = (headPos - Camera.CFrame.Position).Unit
+		local target = GetClosestEnemyInFOV()
+		if target then
+			local look = (target.Position - Camera.CFrame.Position).Unit
 			Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + look)
 		end
 	end
 
 	-- ESP
 	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Head") then
+		if player ~= LocalPlayer and IsEnemy(player) and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Head") and player.Character:FindFirstChild("Humanoid") then
 			local hrp = player.Character.HumanoidRootPart
 			local head = player.Character.Head
+			local humanoid = player.Character.Humanoid
 			local box = DrawingESP[player].Box
 			local name = DrawingESP[player].Name
+			local healthBar = DrawingESP[player].Health
 
 			local rootPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
 			local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
@@ -174,21 +103,32 @@ RunService.RenderStepped:Connect(function()
 				box.Size = Vector2.new(width, height)
 				box.Position = Vector2.new(rootPos.X - width / 2, rootPos.Y - height / 2)
 				box.Visible = true
-
-				local visible = IsVisible(head)
-				box.Color = visible and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+				box.Color = IsVisible(head) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
 
 				name.Text = player.Name
 				name.Position = Vector2.new(rootPos.X, rootPos.Y - height / 2 - 15)
 				name.Color = box.Color
 				name.Visible = true
+
+				-- Health bar (esquerda da box)
+				local hpPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+				local top = Vector2.new(box.Position.X - 6, box.Position.Y)
+				local bottom = Vector2.new(top.X, box.Position.Y + height)
+				local mid = Vector2.new(top.X, top.Y + height * (1 - hpPercent))
+
+				healthBar.From = bottom
+				healthBar.To = mid
+				healthBar.Color = Color3.fromRGB(0, 255, 0)
+				healthBar.Visible = true
 			else
 				box.Visible = false
 				name.Visible = false
+				healthBar.Visible = false
 			end
 		elseif DrawingESP[player] then
 			DrawingESP[player].Box.Visible = false
 			DrawingESP[player].Name.Visible = false
+			DrawingESP[player].Health.Visible = false
 		end
 	end
 end)
