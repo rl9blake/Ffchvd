@@ -53,7 +53,7 @@ local function IsVisible(part)
 	return not result or result.Instance:IsDescendantOf(part.Parent)
 end
 
--- Aimbot com verificação de distância (10 studs)
+-- Aimbot com verificação de distância (20 studs)
 local function GetClosestVisiblePlayer(maxDistance)
 	local closest = nil
 	local shortest = math.huge
@@ -127,7 +127,7 @@ end)
 RunService.RenderStepped:Connect(function()
 	-- Aimbot
 	if AimbotEnabled then
-		local maxDistance = 10
+		local maxDistance = 20 -- Alcance do Aimbot
 		local target = GetClosestVisiblePlayer(maxDistance)
 		if target and target.Character and target.Character:FindFirstChild("Head") then
 			local headPos = target.Character.Head.Position
